@@ -12,15 +12,18 @@ from util.utils import send_msg, recv_msg, get_indices_each_node_case
 # Configurations are in a separate config.py file
 from config import *
 
+# Initialize the model
 model = get_model(model_name)
 if hasattr(model, 'create_graph'):
     model.create_graph(learning_rate=step_size)
 
+# Determine averaging slots
 if time_gen is not None:
     use_fixed_averaging_slots = True
 else:
     use_fixed_averaging_slots = False
 
+# Load data
 if batch_size < total_data:   # Read all data once when using stochastic gradient descent
     train_image, train_label, test_image, test_label, train_label_orig = get_data(dataset, total_data, dataset_file_path)
 
@@ -28,6 +31,7 @@ if batch_size < total_data:   # Read all data once when using stochastic gradien
     # putting it outside of the sim loop because there is no randomness in the current way of computing the indices
     indices_each_node_case = get_indices_each_node_case(n_nodes, MAX_CASE, train_label_orig)
 
+# Initialize the server socket
 listening_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 listening_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 listening_sock.bind((SERVER_ADDR, SERVER_PORT))
@@ -43,11 +47,13 @@ while len(client_sock_all) < n_nodes:
 
     client_sock_all.append(client_sock)
 
+# Create a separate folder for each simulation run
 if single_run:
     stat = CollectStatistics(results_file_name=single_run_results_file_path, is_single_run=True)
 else:
     stat = CollectStatistics(results_file_name=multi_run_results_file_path, is_single_run=False)
 
+# Start multiple simulation runs
 for sim in sim_runs:
 
     if batch_size >= total_data:  # Read data again for different sim. round
@@ -56,6 +62,7 @@ for sim in sim_runs:
         # This function takes a long time to complete,
         indices_each_node_case = get_indices_each_node_case(n_nodes, MAX_CASE, train_label_orig)
 
+    # Start cases and tau_setup loop
     for case in case_range:
 
         for tau_setup in tau_setup_all:
@@ -70,6 +77,7 @@ for sim in sim_runs:
             loss_min = np.inf
             prev_loss_is_min = False
 
+            # Config tau and control algorithm
             if tau_setup < 0:
                 is_adapt_local = True
                 tau_config = 1
@@ -87,6 +95,7 @@ for sim in sim_runs:
             else:
                 control_alg = None
 
+            # Send initial message to each client
             for n in range(0, n_nodes):
                 indices_this_node = indices_each_node_case[case][n]
                 msg = ['MSG_INIT_SERVER_TO_CLIENT', model_name, dataset,
